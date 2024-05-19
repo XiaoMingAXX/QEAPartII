@@ -6,6 +6,13 @@
 #include "lidar.h"
 #include "main.h"
 
+//====================================user========================================//
+#define AofDoomBridge 0.4
+#define L 0.4
+#define BridgeLength 3.1416
+#define Pi 3.1415926
+#define dT 0.01
+
 #define Follow_Distance 1600  //跟随距离
 #define Keep_Follow_Distance 500   //跟随保持距离
 #define Avoid_Min_Distance 200  //避障最小距离
@@ -39,7 +46,8 @@ extern u8 Mode;
 #define Lidar_Follow_Mode					3
 #define ELE_Line_Patrol_Mode			5
 #define CCD_Line_Patrol_Mode			6
-#define Lidar_Along_Mode				  4			
+#define Lidar_Along_Mode				  4	
+#define Doom_Bridge_Mode					7		
 
 
 //指示遥控控制的开关
@@ -91,5 +99,6 @@ u8 Detect_Barrier(void);
 void Lidar_Avoid(void);
 void Lidar_Follow(void);
 void Lidar_along_wall(void);
+void Doom_Bridge(double V,double K);
 #endif  
 

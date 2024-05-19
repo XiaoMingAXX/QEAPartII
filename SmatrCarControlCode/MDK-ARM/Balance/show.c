@@ -4,7 +4,7 @@ unsigned char i;
 unsigned char Send_Count; 
 extern SEND_DATA Send_Data;
 extern int Time_count;
-
+extern double angle;
 int Buzzer_count=25;  
 
 /**************************************************************************
@@ -59,7 +59,7 @@ void oled_show(void)
 	 //采集电位器档位信息，实时显示小车开机时要适配的小车型号
 	 Divisor_Mode=2048/CAR_NUMBER+5;
 	 Car_Mode_Show=(int) ((Get_adc_Average(Potentiometer,10))/Divisor_Mode); 
-	 if(Car_Mode_Show>5)Car_Mode_Show=5;
+	 if(Car_Mode_Show>8)Car_Mode_Show=5;
 	
 	 Voltage_Show=Voltage*100; 
 	 count++;
@@ -160,9 +160,107 @@ void oled_show(void)
 				 }
 			 
 	}
+
+	//Doom bridge mode display screen content display 
+	//死亡之桥模式显示屏内容显示
+	if(Mode == Doom_Bridge_Mode)											
+		{
+			//OLED_Clear();
+				//The first line of the display shows the content // 
+				//显示屏第1行显示内容//
+				OLED_Show_CCD(); 																																			//动态显示CCD图像
+				
+				//The second line of the display shows the content //
+				//显示屏第2行显示内容//
+				OLED_ShowString(00,10,"Median :");
+				OLED_ShowNumber(40,10, CCD_Median ,5,12);  																						//CCD中线的数值，巡线最中心位置为64
+			
+				switch(Car_Mode_Show)				
+				{
+					case Mec_Car:       OLED_ShowString(86,10,"Mec "); break; 
+					case Omni_Car:      OLED_ShowString(86,10,"Omni"); break; 
+					case Akm_Car:       OLED_ShowString(86,10,"Akm "); break; 
+					case Diff_Car:      OLED_ShowString(86,10,"Diff"); break; 
+					case FourWheel_Car: OLED_ShowString(86,10,"4WD "); break; 
+					case Tank_Car:      OLED_ShowString(86,10,"Tank"); break; 
+				} 
+			
+				//The third line of the display shows the content // 
+				//显示屏第3行显示内容//
+				OLED_ShowString(00,20,"Threshold :");						
+				OLED_ShowNumber(90,20, CCD_Threshold,5,12);     //显示CCD阈值
+			
+				//The fourth line of the display shows the content // 
+				//显示屏第4行显示内容//
+				//显示所有车型电机A和B的目标速度和当前实际速度//
+				OLED_ShowString(00,30,"A:");	
+				if(MOTOR_A.Target<0)	 	 OLED_ShowString(15,30,"-"),
+																 OLED_ShowNumber(25,30,-MOTOR_A.Target*1000,5,12);   				 //负数转换显示
+				else                 	   OLED_ShowString(15,30,"+"),
+																 OLED_ShowNumber(25,30, MOTOR_A.Target*1000,5,12);    			//电机目标转速
+				OLED_ShowString(60,30,"B:");
+				if(MOTOR_B.Target<0)	   OLED_ShowString(75,30,"-"),
+																 OLED_ShowNumber(85,30,-MOTOR_B.Target*1000,5,12);   			  //负数转换显示
+				else                     OLED_ShowString(75,30,"+"),
+																 OLED_ShowNumber(85,30, MOTOR_B.Target*1000,5,12);    			//电机目标转速	
+				
+				//The 5th line of the display shows the content // 
+				//显示屏第5行显示内容//
+				if(Car_Mode==Mec_Car||Car_Mode==FourWheel_Car)
+				{
+					//麦轮车、四驱车显示电机C和D的目标速度和当前实际速度//
+					OLED_ShowString(00,40,"C:");
+					if(MOTOR_C.Target<0)	   OLED_ShowString(15,40,"-"),
+																	 OLED_ShowNumber(25,40,-MOTOR_C.Target*1000,5,12);    		//负数转换显示
+					else                     OLED_ShowString(15,40,"+"),
+																   OLED_ShowNumber(25,40, MOTOR_C.Target*1000,5,12);    		//电机目标转速
+						
+					OLED_ShowString(60,40,"D:");
+					if(MOTOR_D.Target<0)	   OLED_ShowString(75,40,"-"),
+																	 OLED_ShowNumber(85,40,-MOTOR_D.Target*1000,5,12);    		//负数转换显示
+					else                   OLED_ShowString(75,40,"+"),
+																	 OLED_ShowNumber(85,40, MOTOR_D.Target*1000,5,12);    		//电机目标转速
+					}
+			
+				else if(Car_Mode==Akm_Car)
+				{
+					//阿克曼小车显示舵机的PWM的数值//
+					OLED_ShowString(00,40,"Angle:");
+					if( Servo<0)		      OLED_ShowString(60,40,"-"),
+																OLED_ShowNumber(80,40,-angle,4,12);
+					else               	OLED_ShowString(60,40,"+"),
+																OLED_ShowNumber(80,40, angle,4,12); 		
+					}	
+				//全向轮车显示电机C的目标速度和当前实际速度//
+				else if(Car_Mode==Omni_Car)
+				{
+					OLED_ShowString(00,40,"C:");
+					if(MOTOR_C.Target<0)	   OLED_ShowString(15,40,"-"),	
+																	 OLED_ShowNumber(25,40,-MOTOR_C.Target*1000,5,12);   	  //负数转换显示
+					else                     OLED_ShowString(15,40,"+"),
+																   OLED_ShowNumber(25,40, MOTOR_C.Target*1000,5,12);    	//电机目标转速
+				}
+				
+				else if(Car_Mode==Diff_Car||Car_Mode==Tank_Car)
+				{
+					//差速小车、履带车显示左右电机的PWM的数值
+																	 OLED_ShowString(00,40,"MA");
+					 if( MOTOR_A.Motor_Pwm<0)OLED_ShowString(20,40,"-"),
+																	 OLED_ShowNumber(30,40,-MOTOR_A.Motor_Pwm,4,12);
+					 else                 	 OLED_ShowString(20,40,"+"),
+																	 OLED_ShowNumber(30,40, MOTOR_A.Motor_Pwm,4,12); 
+																	 OLED_ShowString(60,40,"MB");
+					 if(MOTOR_B.Motor_Pwm<0) OLED_ShowString(80,40,"-"),
+																	 OLED_ShowNumber(90,40,-MOTOR_B.Motor_Pwm,4,12);
+					 else                 	 OLED_ShowString(80,40,"+"),
+																	 OLED_ShowNumber(90,40, MOTOR_B.Motor_Pwm,4,12);
+				 }
+			 
+	}
+
 		//Display content on the display in electromagnetic line patrol mode 
 		//电磁巡线模式显示屏内容显示
-		else if(Mode == ELE_Line_Patrol_Mode)							
+	else if(Mode == ELE_Line_Patrol_Mode)							
 		{	
 			//OLED_Clear();
 						//The first line of the display shows the content // 
@@ -418,6 +516,8 @@ void oled_show(void)
 	   else if(Mode==Lidar_Along_Mode) OLED_ShowString(0,50,"Alo");
 	   else if(Mode==PS2_Control_Mode) OLED_ShowString(0,50,"PS2");
 		 else if(Mode==APP_Control_Mode)OLED_ShowString(0,50,"APP");
+		 else if (Mode==Doom_Bridge_Mode)OLED_ShowString(0,50,"Bri");
+		 
 	
 			
 		 //显示当前小车是否允许控制//

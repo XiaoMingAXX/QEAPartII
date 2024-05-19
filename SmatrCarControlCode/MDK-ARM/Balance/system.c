@@ -31,7 +31,7 @@ int Divisor_Mode;
 // Robot type variable
 //机器人型号变量
 //0=Mec_Car，1=Omni_Car，2=Akm_Car，3=Diff_Car，4=FourWheel_Car，5=Tank_Car
-u8 Car_Mode=4; 
+u8 Car_Mode=2; 
 
 //Servo control PWM value, Ackerman car special
 //舵机控制PWM值，阿克曼小车专用
@@ -76,7 +76,7 @@ float Move_X, Move_Y, Move_Z;
 
 //PID parameters of Speed control
 //速度控制PID参数
-float Velocity_KP=700,Velocity_KI=700; 
+float Velocity_KP=700,Velocity_KI=800; 
 
 //Smooth control of intermediate variables, dedicated to omni-directional moving cars
 //平滑控制中间变量，全向移动小车专用

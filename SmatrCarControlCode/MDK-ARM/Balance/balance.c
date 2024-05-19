@@ -4,12 +4,12 @@ int Time_count=0; //Time variable //计时变量
 
 u8 Lidar_Detect = Lidar_Detect_ON;			//电磁巡线模式雷达检测障碍物，默认开启
 
-u8 Mode;
+u8 Mode=7;			//初始化为死亡之桥模式
 float RC_Velocity_CCD=350,RC_Velocity_ELE=350; 
 float PS2_Velocity,PS2_Turn_Velocity;			//遥控控制的速度
 Encoder OriginalEncoder; //Encoder raw data //编码器原始数据      
 
-
+int time;
 //粗延时函数，微秒
 void delay1_us(u16 time)
 {    
@@ -103,7 +103,7 @@ void Drive_Motor(float Vx,float Vy,float Vz)
 			
 			// Front wheel steering Angle limit (front wheel steering Angle controlled by steering engine), unit: rad
 			//前轮转向角度限幅(舵机控制前轮转向角度)，单位：rad
-			AngleR=target_limit_float(AngleR,-0.49f,0.32f);
+			AngleR=target_limit_float(AngleR,-0.49f,1.0f);
 			
 			//Inverse kinematics //运动学逆解
 			if(AngleR!=0)
@@ -190,7 +190,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	  static u8 Count_CCD = 0;								//调节CCD控制频率
 	  static u8 last_mode = 0;
 	if(htim->Instance==TIM12)
-	{
+	{	time++;
       //TIM12->SR &= ~(0x01);	
 			//Time count is no longer needed after 30 seconds
 			//时间计数，30秒后不再需要
@@ -213,7 +213,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 						{
 							CCD_Init();								//CCD初始化，CCD模块和电磁巡线模块共用一个接口，两个不能同时使用
 						}
-					 else if(Mode > 6)							//5种模式循环切换
+					 else if(Mode > 8)							//8种模式循环切换
 						{
 							Mode = 0;
 						}
@@ -239,6 +239,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 			  else if(Mode == Lidar_Avoid_Mode)     Lidar_Avoid();        //Avoid Mode //避障模式
 			  else if(Mode == Lidar_Follow_Mode)    Lidar_Follow();       //Follow Mode //跟随模式
 			  else if(Mode == Lidar_Along_Mode)     Lidar_along_wall();   //Along Mode //走直线模式
+			  else if(Mode == Doom_Bridge_Mode)		Doom_Bridge((double)forward_velocity,(double)1);
 			  else if(Mode == ELE_Line_Patrol_Mode)
 				{
 					Sensor_Right=Get_Adc(4);
@@ -1082,4 +1083,153 @@ void Lidar_along_wall(void)
 	Drive_Motor(Move_X,Move_Y,Move_Z);
 }
 
+double dx_du(double u) {
+    return -2 * AofDoomBridge * ((L - cos(u)) * -sin(u) + sin(u) * cos(u));
+}
 
+double dy_du(double u) {
+    return 2 * AofDoomBridge * ((L - cos(u)) * cos(u));
+}
+
+double ddx_du(double u) {
+    return -2 * AofDoomBridge * ((L - cos(u)) * -cos(u) + sin(u) * -sin(u) + sin(u) * sin(u));
+}
+
+double ddy_du(double u) {
+    return 2 * AofDoomBridge * (-(L - cos(u)) * sin(u) - cos(u) * sin(u));
+}
+
+double calculate_curvature(double u) {
+    double dx = dx_du(u);
+    double dy = dy_du(u);
+    double ddx = ddx_du(u);
+    double ddy = ddy_du(u);
+    
+    double numerator = dx * ddy - dy * ddx;
+    double denominator = pow(dx * dx + dy * dy, 1.5);
+    
+    return numerator / denominator;
+}
+
+double calculate_steering_angle(double curvature) {
+    double R = 1.0 / curvature;
+    return atan(Akm_axlespacing / R);
+}
+
+// 定义一个函数来计算曲率半径
+double curvature_radius(double u) {
+    // 计算 x 和 y 的一阶导数
+    double x_prime = 0.32 * sin(u);
+    double y_prime = 0.32 * (cos(u) * (0.4 - cos(u)) - sin(u));
+    
+    // 计算 x 和 y 的二阶导数
+    double x_double_prime = 0.32 * cos(u);
+    double y_double_prime = 0.32 * sin(u) * (cos(u) - 0.4);
+    
+    // 计算曲率 kappa
+    double numerator = fabs(x_prime * y_double_prime - y_prime * x_double_prime);
+    double denominator = pow(x_prime * x_prime + y_prime * y_prime, 1.5);
+    double kappa = numerator / denominator;
+    
+    // 计算曲率半径 R
+    double radius = 1.0 / kappa;
+	return radius;
+    // return atan(Akm_axlespacing / radius);
+	//return atan2(y_prime,x_prime);
+}
+double calculate_speed(double u) {
+    // 计算 x(u) 和 y(u) 的一阶导数
+    double x_prime = 0.32 * sin(u);
+    double y_prime = 0.32 * (cos(u) * (0.4 - cos(u)) - sin(u) * sin(u));
+    
+    // 计算速度 v
+    double speed = sqrt(x_prime * x_prime + y_prime * y_prime);
+    
+    return speed;
+}
+double u=PI;
+double angle;
+double du,dC;
+double speed;
+double RofDoomBridge;
+float InitAngleR=0.24;
+float AngleR=0.24;
+float Max_Angle=0.42;
+double Speed=1.4;
+float T;
+double ChangeRateOfAngle=1;
+double  KofTotalTime=0.98;
+int turn_flag=0,stop_flag=0;
+void Doom_Bridge(double V,double K)
+{	float amplitude=3.5; //Wheel target speed limit //车轮目标速度限幅
+	
+if(u>0){
+    du = dT / (BridgeLength/Speed) * PI/KofTotalTime;
+	T=Pi/du;
+    RofDoomBridge = curvature_radius(u);
+    speed         = calculate_speed(u);
+	speed=speed*3;
+	V=Speed;
+    u -= K * du;
+    float R, Ratio = 636.56, Angle_Servo;
+
+    // For Ackerman small car, Vz represents the front wheel steering Angle
+    // 对于阿克曼小车Vz代表右前轮转向角度
+  //  AngleR = atan(Akm_axlespacing / RofDoomBridge);
+   AngleR+=(Max_Angle-InitAngleR)/T*ChangeRateOfAngle;
+	 R     = RofDoomBridge;
+	ChangeRateOfAngle+=0.001;
+
+    // Front wheel steering Angle limit (front wheel steering Angle controlled by steering engine), unit: rad
+    // 前轮转向角度限幅(舵机控制前轮转向角度)，单位：rad
+    AngleR = target_limit_float(AngleR, -0.49f, Max_Angle);
+
+    // Inverse kinematics //运动学逆解
+    if (AngleR != 0) {
+        MOTOR_A.Target = V * (R - 0.5f * Wheel_spacing) / R;
+        MOTOR_B.Target = V * (R + 0.5f * Wheel_spacing) / R;
+    } else {
+        MOTOR_A.Target = V;
+        MOTOR_B.Target = V;
+    }
+    // The PWM value of the servo controls the steering Angle of the front wheel
+    // 舵机PWM值，舵机控制前轮转向角度
+    // Angle_Servo    =  -0.628f*pow(AngleR, 3) + 1.269f*pow(AngleR, 2) - 1.772f*AngleR + 1.573f;
+    Angle_Servo = -0.628f * pow(AngleR, 3) + 1.269f * pow(AngleR, 2) - 1.772f * AngleR + 1.755f;
+    Servo       = SERVO_INIT + (Angle_Servo - 1.755f) * Ratio;
+
+    // Wheel (motor) target speed limit //车轮(电机)目标速度限幅
+    MOTOR_A.Target = target_limit_float(MOTOR_A.Target, -amplitude, amplitude);
+    MOTOR_B.Target = target_limit_float(MOTOR_B.Target, -amplitude, amplitude);
+    MOTOR_C.Target = 0;                                  // Out of use //没有使用到
+    MOTOR_D.Target = 0;                                  // Out of use //没有使用到
+    Servo          = target_limit_int(Servo, 800, 2200); // Servo PWM value limit //舵机PWM值限幅}
+   
+	}
+	else if(u<0)
+	{
+		u=0;
+		Max_Angle=0.8;
+		turn_flag=1;
+		
+	}
+if (u==0 && HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_2)==1)
+{
+	stop_flag=1;
+}
+
+
+
+	
+
+	if (turn_flag==1 && stop_flag==0)
+	{
+		Drive_Motor(1.2,0,0.95);
+	}
+	else if (turn_flag==1 && stop_flag==1)
+	{
+		Drive_Motor(0,0,0);
+	}
+	
+
+}
