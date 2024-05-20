@@ -1158,7 +1158,7 @@ float Max_Angle=0.42;
 double Speed=1.4;
 float T;
 double ChangeRateOfAngle=1;
-double  KofTotalTime=0.98;
+double  KofTotalTime=0.96;
 int turn_flag=0,stop_flag=0;
 void Doom_Bridge(double V,double K)
 {	float amplitude=3.5; //Wheel target speed limit //车轮目标速度限幅
@@ -1221,6 +1221,7 @@ if (u==0 && HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_2)==1)
 
 
 	
+
 
 	if (turn_flag==1 && stop_flag==0)
 	{
